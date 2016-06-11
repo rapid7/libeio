@@ -1,3 +1,3 @@
 #!/bin/sh
 
-autoreconf --install --symlink --force
+autoreconf --install --force
