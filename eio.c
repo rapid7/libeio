@@ -792,7 +792,7 @@ eio__sendfile (int ofd, int ifd, off_t offset, size_t count)
       while (count)
         {
           eio_ssize_t cnt;
-          
+
           cnt = pread (ifd, eio_buf, count > EIO_BUFSIZE ? EIO_BUFSIZE : count, offset);
 
           if (cnt <= 0)
@@ -1024,7 +1024,7 @@ eio__realpath (struct etp_tmpbuf *tmpbuf, eio_wd wd, const char *path)
       errno = ENOENT;
       if (wd == EIO_INVALID_WD)
         return -1;
-      
+
       if (wd == EIO_CWD)
         {
           if (!getcwd (res, PATH_MAX))
@@ -1249,7 +1249,7 @@ eio_dent_insertion_sort (eio_dirent *dents, int size)
   {
     int i;
     eio_dirent *min = dents;
-    
+
     /* the radix pre-pass ensures that the minimum element is in the first EIO_SORT_CUTOFF + 1 elements */
     for (i = size > EIO_SORT_FAST ? EIO_SORT_CUTOFF + 1 : size; --i; )
       if (EIO_DENT_CMP (dents [i], <, *min))

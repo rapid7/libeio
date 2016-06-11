@@ -154,7 +154,7 @@ struct etp_pool
 
    void (*want_poll_cb) (void *userdata);
    void (*done_poll_cb) (void *userdata);
- 
+
    xmutex_t wrklock;
    xmutex_t reslock;
    xmutex_t reqlock;
@@ -387,7 +387,7 @@ X_THREAD_PROC (etp_proc)
       --pool->nready;
 
       X_UNLOCK (pool->reqlock);
-     
+
       if (ecb_expect_false (req->type == ETP_TYPE_QUIT))
         goto quit;
 
@@ -446,7 +446,7 @@ etp_maybe_start_thread (etp_pool pool)
 {
   if (ecb_expect_true (etp_nthreads (pool) >= pool->wanted))
     return;
-  
+
   /* todo: maybe use pool->idle here, but might be less exact */
   if (ecb_expect_true (0 <= (int)etp_nthreads (pool) + (int)etp_npending (pool) - (int)etp_nreqs (pool)))
     return;
