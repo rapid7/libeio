@@ -48,7 +48,7 @@ event_loop (void)
 int
 res_cb (eio_req *req)
 {
-  printf ("res_cb(%d|%s) = %d\n", req->type, req->data ? req->data : "?", EIO_RESULT (req));
+  printf ("res_cb(%d|%s) = %zd\n", req->type, req->data ? (char *)req->data : "?", EIO_RESULT (req));
 
   if (req->result < 0)
     abort ();
@@ -61,7 +61,7 @@ readdir_cb (eio_req *req)
 {
   char *buf = (char *)EIO_BUF (req);
 
-  printf ("readdir_cb = %d\n", EIO_RESULT (req));
+  printf ("readdir_cb = %zd\n", EIO_RESULT (req));
 
   if (EIO_RESULT (req) < 0)
     return 0;
@@ -81,12 +81,12 @@ stat_cb (eio_req *req)
   struct stat *buf = EIO_STAT_BUF (req);
 
   if (req->type == EIO_FSTAT)
-    printf ("fstat_cb = %d\n", EIO_RESULT (req));
+    printf ("fstat_cb = %zd\n", EIO_RESULT (req));
   else
-    printf ("stat_cb(%s) = %d\n", EIO_PATH (req), EIO_RESULT (req));
+    printf ("stat_cb(%s) = %zd\n", EIO_PATH (req), EIO_RESULT (req));
 
   if (!EIO_RESULT (req))
-    printf ("stat size %d perm 0%o\n", buf->st_size, buf->st_mode & 0777);
+    printf ("stat size %zd perm 0%o\n", buf->st_size, buf->st_mode & 0777);
 
   return 0;
 }
@@ -96,7 +96,7 @@ read_cb (eio_req *req)
 {
   unsigned char *buf = (unsigned char *)EIO_BUF (req);
 
-  printf ("read_cb = %d (%02x%02x%02x%02x %02x%02x%02x%02x)\n",
+  printf ("read_cb = %zd (%02x%02x%02x%02x %02x%02x%02x%02x)\n",
           EIO_RESULT (req),
           buf [0], buf [1], buf [2], buf [3],
           buf [4], buf [5], buf [6], buf [7]);
@@ -109,7 +109,7 @@ int last_fd;
 int
 open_cb (eio_req *req)
 {
-  printf ("open_cb = %d\n", EIO_RESULT (req));
+  printf ("open_cb = %zd\n", EIO_RESULT (req));
 
   last_fd = EIO_RESULT (req);
 
