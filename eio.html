@@ -1,0 +1,907 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title></title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a>
+    <ul>
+      <li><a href="#FEATURES">FEATURES</a></li>
+      <li><a href="#TIME-REPRESENTATION">TIME REPRESENTATION</a></li>
+      <li><a href="#FORK-SUPPORT">FORK SUPPORT</a></li>
+    </ul>
+  </li>
+  <li><a href="#INITIALISATION-INTEGRATION">INITIALISATION/INTEGRATION</a></li>
+  <li><a href="#HIGH-LEVEL-REQUEST-API">HIGH LEVEL REQUEST API</a>
+    <ul>
+      <li><a href="#REQUEST-SUBMISSION-AND-RESULT-PROCESSING">REQUEST SUBMISSION AND RESULT PROCESSING</a></li>
+      <li><a href="#CANCELLING-REQUESTS">CANCELLING REQUESTS</a></li>
+      <li><a href="#AVAILABLE-REQUESTS">AVAILABLE REQUESTS</a>
+        <ul>
+          <li><a href="#POSIX-API-WRAPPERS">POSIX API WRAPPERS</a></li>
+          <li><a href="#READING-DIRECTORIES">READING DIRECTORIES</a></li>
+          <li><a href="#OS-SPECIFIC-CALL-WRAPPERS">OS-SPECIFIC CALL WRAPPERS</a></li>
+          <li><a href="#LIBEIO-SPECIFIC-REQUESTS">LIBEIO-SPECIFIC REQUESTS</a></li>
+          <li><a href="#GROUPING-AND-LIMITING-REQUESTS">GROUPING AND LIMITING REQUESTS</a>
+            <ul>
+              <li><a href="#GROUP-REQUEST-LIFETIME">GROUP REQUEST LIFETIME</a></li>
+              <li><a href="#CREATING-COMPOSITE-REQUESTS">CREATING COMPOSITE REQUESTS</a></li>
+              <li><a href="#REQUEST-LIMITING">REQUEST LIMITING</a></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#LOW-LEVEL-REQUEST-API">LOW LEVEL REQUEST API</a></li>
+  <li><a href="#ANATOMY-AND-LIFETIME-OF-AN-EIO-REQUEST">ANATOMY AND LIFETIME OF AN EIO REQUEST</a>
+    <ul>
+      <li><a href="#CONFIGURATION">CONFIGURATION</a></li>
+    </ul>
+  </li>
+  <li><a href="#EMBEDDING">EMBEDDING</a></li>
+  <li><a href="#COMPILETIME-CONFIGURATION">COMPILETIME CONFIGURATION</a></li>
+  <li><a href="#PORTABILITY-REQUIREMENTS">PORTABILITY REQUIREMENTS</a></li>
+  <li><a href="#AUTHOR">AUTHOR</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p>libeio - truly asynchronous POSIX I/O</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<pre><code>  #include &lt;eio.h&gt;</code></pre>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p>The newest version of this document is also available as an html-formatted web page you might find easier to navigate when reading it for the first time: <a href="http://pod.tst.eu/http://cvs.schmorp.de/libeio/eio.pod">http://pod.tst.eu/http://cvs.schmorp.de/libeio/eio.pod</a>.</p>
+
+<p>Note that this library is a by-product of the <code>IO::AIO</code> perl module, and many of the subtler points regarding requests lifetime and so on are only documented in its documentation at the moment: <a href="http://pod.tst.eu/http://cvs.schmorp.de/IO-AIO/AIO.pm">http://pod.tst.eu/http://cvs.schmorp.de/IO-AIO/AIO.pm</a>.</p>
+
+<h2 id="FEATURES">FEATURES</h2>
+
+<p>This library provides fully asynchronous versions of most POSIX functions dealing with I/O. Unlike most asynchronous libraries, this not only includes <code>read</code> and <code>write</code>, but also <code>open</code>, <code>stat</code>, <code>unlink</code> and similar functions, as well as less rarely ones such as <code>mknod</code>, <code>futime</code> or <code>readlink</code>.</p>
+
+<p>It also offers wrappers around <code>sendfile</code> (Solaris, Linux, HP-UX and FreeBSD, with emulation on other platforms) and <code>readahead</code> (Linux, with emulation elsewhere).</p>
+
+<p>The goal is to enable you to write fully non-blocking programs. For example, in a game server, you would not want to freeze for a few seconds just because the server is running a backup and you happen to call <code>readdir</code>.</p>
+
+<h2 id="TIME-REPRESENTATION">TIME REPRESENTATION</h2>
+
+<p>Libeio represents time as a single floating point number, representing the (fractional) number of seconds since the (POSIX) epoch (somewhere near the beginning of 1970, details are complicated, don&#39;t ask). This type is called <code>eio_tstamp</code>, but it is guaranteed to be of type <code>double</code> (or better), so you can freely use <code>double</code> yourself.</p>
+
+<p>Unlike the name component <code>stamp</code> might indicate, it is also used for time differences throughout libeio.</p>
+
+<h2 id="FORK-SUPPORT">FORK SUPPORT</h2>
+
+<p>Usage of pthreads in a program changes the semantics of fork considerably. Specifically, only async-safe functions can be called after fork. Libeio uses pthreads, so this applies, and makes using fork hard for anything but relatively fork + exec uses.</p>
+
+<p>This library only works in the process that initialised it: Forking is fully supported, but using libeio in any other process than the one that called <code>eio_init</code> is not.</p>
+
+<p>You might get around by not <i>using</i> libeio before (or after) forking in the parent, and using it in the child afterwards. You could also try to call the <a>eio_init</a> function again in the child, which will brutally reinitialise all data structures, which isn&#39;t POSIX conformant, but typically works.</p>
+
+<p>Otherwise, the only recommendation you should follow is: treat fork code the same way you treat signal handlers, and only ever call <code>eio_init</code> in the process that uses it, and only once ever.</p>
+
+<h1 id="INITIALISATION-INTEGRATION">INITIALISATION/INTEGRATION</h1>
+
+<p>Before you can call any eio functions you first have to initialise the library. The library integrates into any event loop, but can also be used without one, including in polling mode.</p>
+
+<p>You have to provide the necessary glue yourself, however.</p>
+
+<dl>
+
+<dt id="int-eio_init-void-want_poll-void-void-done_poll-void">int eio_init (void (*want_poll)(void), void (*done_poll)(void))</dt>
+<dd>
+
+<p>This function initialises the library. On success it returns <code>0</code>, on failure it returns <code>-1</code> and sets <code>errno</code> appropriately.</p>
+
+<p>It accepts two function pointers specifying callbacks as argument, both of which can be <code>0</code>, in which case the callback isn&#39;t called.</p>
+
+<p>There is currently no way to change these callbacks later, or to &quot;uninitialise&quot; the library again.</p>
+
+</dd>
+<dt id="want_poll-callback">want_poll callback</dt>
+<dd>
+
+<p>The <code>want_poll</code> callback is invoked whenever libeio wants attention (i.e. it wants to be polled by calling <code>eio_poll</code>). It is &quot;edge-triggered&quot;, that is, it will only be called once when eio wants attention, until all pending requests have been handled.</p>
+
+<p>This callback is called while locks are being held, so <i>you must not call any libeio functions inside this callback</i>. That includes <code>eio_poll</code>. What you should do is notify some other thread, or wake up your event loop, and then call <code>eio_poll</code>.</p>
+
+</dd>
+<dt id="done_poll-callback">done_poll callback</dt>
+<dd>
+
+<p>This callback is invoked when libeio detects that all pending requests have been handled. It is &quot;edge-triggered&quot;, that is, it will only be called once after <code>want_poll</code>. To put it differently, <code>want_poll</code> and <code>done_poll</code> are invoked in pairs: after <code>want_poll</code> you have to call <code>eio_poll ()</code> until either <code>eio_poll</code> indicates that everything has been handled or <code>done_poll</code> has been called, which signals the same - only one method is needed.</p>
+
+<p>Note that <code>eio_poll</code> might return after <code>done_poll</code> and <code>want_poll</code> have been called again, so watch out for races in your code.</p>
+
+<p>It is quite common to have an empty <code>done_call</code> callback and only use the return value from <code>eio_poll</code>, or, when <code>eio_poll</code> is configured to handle all outstanding replies, it&#39;s enough to call <code>eio_poll</code> once.</p>
+
+<p>As with <code>want_poll</code>, this callback is called while locks are being held, so you <i>must not call any libeio functions from within this callback</i>.</p>
+
+</dd>
+<dt id="int-eio_poll">int eio_poll ()</dt>
+<dd>
+
+<p>This function has to be called whenever there are pending requests that need finishing. You usually call this after <code>want_poll</code> has indicated that you should do so, but you can also call this function regularly to poll for new results.</p>
+
+<p>If any request invocation returns a non-zero value, then <code>eio_poll ()</code> immediately returns with that value as return value.</p>
+
+<p>Otherwise, if all requests could be handled, it returns <code>0</code>. If for some reason not all requests have been handled, i.e. some are still pending, it returns <code>-1</code>.</p>
+
+</dd>
+</dl>
+
+<p>For libev, you would typically use an <code>ev_async</code> watcher: the <code>want_poll</code> callback would invoke <code>ev_async_send</code> to wake up the event loop. Inside the callback set for the watcher, one would call <code>eio_poll ()</code>.</p>
+
+<p>If <code>eio_poll ()</code> is configured to not handle all results in one go (i.e. it returns <code>-1</code>) then you should start an idle watcher that calls <code>eio_poll</code> until it returns something <code>!= -1</code>.</p>
+
+<p>A full-featured connector between libeio and libev would look as follows (if <code>eio_poll</code> is handling all requests, it can of course be simplified a lot by removing the idle watcher logic):</p>
+
+<pre><code>  static struct ev_loop *loop;
+  static ev_idle repeat_watcher;
+  static ev_async ready_watcher;
+
+  /* idle watcher callback, only used when eio_poll */
+  /* didn&#39;t handle all results in one call */
+  static void
+  repeat (EV_P_ ev_idle *w, int revents)
+  {
+    if (eio_poll () != -1)
+      ev_idle_stop (EV_A_ w);
+  }
+
+  /* eio has some results, process them */
+  static void
+  ready (EV_P_ ev_async *w, int revents)
+  {
+    if (eio_poll () == -1)
+      ev_idle_start (EV_A_ &amp;repeat_watcher);
+  }
+
+  /* wake up the event loop */
+  static void
+  want_poll (void)
+  {
+    ev_async_send (loop, &amp;ready_watcher)
+  }
+
+  void
+  my_init_eio ()
+  {
+    loop = EV_DEFAULT;
+
+    ev_idle_init (&amp;repeat_watcher, repeat);
+    ev_async_init (&amp;ready_watcher, ready);
+    ev_async_start (loop, &amp;watcher);
+
+    eio_init (want_poll, 0);
+  }</code></pre>
+
+<p>For most other event loops, you would typically use a pipe - the event loop should be told to wait for read readiness on the read end. In <code>want_poll</code> you would write a single byte, in <code>done_poll</code> you would try to read that byte, and in the callback for the read end, you would call <code>eio_poll</code>.</p>
+
+<p>You don&#39;t have to take special care in the case <code>eio_poll</code> doesn&#39;t handle all requests, as the done callback will not be invoked, so the event loop will still signal readiness for the pipe until <i>all</i> results have been processed.</p>
+
+<h1 id="HIGH-LEVEL-REQUEST-API">HIGH LEVEL REQUEST API</h1>
+
+<p>Libeio has both a high-level API, which consists of calling a request function with a callback to be called on completion, and a low-level API where you fill out request structures and submit them.</p>
+
+<p>This section describes the high-level API.</p>
+
+<h2 id="REQUEST-SUBMISSION-AND-RESULT-PROCESSING">REQUEST SUBMISSION AND RESULT PROCESSING</h2>
+
+<p>You submit a request by calling the relevant <code>eio_TYPE</code> function with the required parameters, a callback of type <code>int (*eio_cb)(eio_req *req)</code> (called <code>eio_cb</code> below) and a freely usable <code>void *data</code> argument.</p>
+
+<p>The return value will either be 0, in case something went really wrong (which can basically only happen on very fatal errors, such as <code>malloc</code> returning 0, which is rather unlikely), or a pointer to the newly-created and submitted <code>eio_req *</code>.</p>
+
+<p>The callback will be called with an <code>eio_req *</code> which contains the results of the request. The members you can access inside that structure vary from request to request, except for:</p>
+
+<dl>
+
+<dt id="ssize_t-result"><code>ssize_t result</code></dt>
+<dd>
+
+<p>This contains the result value from the call (usually the same as the syscall of the same name).</p>
+
+</dd>
+<dt id="int-errorno"><code>int errorno</code></dt>
+<dd>
+
+<p>This contains the value of <code>errno</code> after the call.</p>
+
+</dd>
+<dt id="void-data"><code>void *data</code></dt>
+<dd>
+
+<p>The <code>void *data</code> member simply stores the value of the <code>data</code> argument.</p>
+
+</dd>
+</dl>
+
+<p>Members not explicitly described as accessible must not be accessed. Specifically, there is no guarantee that any members will still have the value they had when the request was submitted.</p>
+
+<p>The return value of the callback is normally <code>0</code>, which tells libeio to continue normally. If a callback returns a nonzero value, libeio will stop processing results (in <code>eio_poll</code>) and will return the value to its caller.</p>
+
+<p>Memory areas passed to libeio wrappers must stay valid as long as a request executes, with the exception of paths, which are being copied internally. Any memory libeio itself allocates will be freed after the finish callback has been called. If you want to manage all memory passed to libeio yourself you can use the low-level API.</p>
+
+<p>For example, to open a file, you could do this:</p>
+
+<pre><code>  static int
+  file_open_done (eio_req *req)
+  {
+    if (req-&gt;result &lt; 0)
+      {
+        /* open() returned -1 */
+        errno = req-&gt;errorno;
+        perror (&quot;open&quot;);
+      }
+    else
+      {
+        int fd = req-&gt;result;
+        /* now we have the new fd in fd */
+      }
+
+    return 0;
+  }
+
+  /* the first three arguments are passed to open(2) */
+  /* the remaining are priority, callback and data */
+  if (!eio_open (&quot;/etc/passwd&quot;, O_RDONLY, 0, 0, file_open_done, 0))
+    abort (); /* something went wrong, we will all die!!! */</code></pre>
+
+<p>Note that you additionally need to call <code>eio_poll</code> when the <code>want_cb</code> indicates that requests are ready to be processed.</p>
+
+<h2 id="CANCELLING-REQUESTS">CANCELLING REQUESTS</h2>
+
+<p>Sometimes the need for a request goes away before the request is finished. In that case, one can cancel the request by a call to <code>eio_cancel</code>:</p>
+
+<dl>
+
+<dt id="eio_cancel-eio_req-req">eio_cancel (eio_req *req)</dt>
+<dd>
+
+<p>Cancel the request (and all its subrequests). If the request is currently executing it might still continue to execute, and in other cases it might still take a while till the request is cancelled.</p>
+
+<p>When cancelled, the finish callback will not be invoked.</p>
+
+<p><code>EIO_CANCELLED</code> is still true for requests that have successfully executed, as long as <code>eio_cancel</code> was called on them at some point.</p>
+
+</dd>
+</dl>
+
+<h2 id="AVAILABLE-REQUESTS">AVAILABLE REQUESTS</h2>
+
+<p>The following request functions are available. <i>All</i> of them return the <code>eio_req *</code> on success and <code>0</code> on failure, and <i>all</i> of them have the same three trailing arguments: <code>pri</code>, <code>cb</code> and <code>data</code>. The <code>cb</code> is mandatory, but in most cases, you pass in <code>0</code> as <code>pri</code> and <code>0</code> or some custom data value as <code>data</code>.</p>
+
+<h3 id="POSIX-API-WRAPPERS">POSIX API WRAPPERS</h3>
+
+<p>These requests simply wrap the POSIX call of the same name, with the same arguments. If a function is not implemented by the OS and cannot be emulated in some way, then all of these return <code>-1</code> and set <code>errorno</code> to <code>ENOSYS</code>.</p>
+
+<dl>
+
+<dt id="eio_open-const-char-path-int-flags-mode_t-mode-int-pri-eio_cb-cb-void-data">eio_open (const char *path, int flags, mode_t mode, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_truncate-const-char-path-off_t-offset-int-pri-eio_cb-cb-void-data">eio_truncate (const char *path, off_t offset, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_chown-const-char-path-uid_t-uid-gid_t-gid-int-pri-eio_cb-cb-void-data">eio_chown (const char *path, uid_t uid, gid_t gid, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_chmod-const-char-path-mode_t-mode-int-pri-eio_cb-cb-void-data">eio_chmod (const char *path, mode_t mode, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_mkdir-const-char-path-mode_t-mode-int-pri-eio_cb-cb-void-data">eio_mkdir (const char *path, mode_t mode, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_rmdir-const-char-path-int-pri-eio_cb-cb-void-data">eio_rmdir (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_unlink-const-char-path-int-pri-eio_cb-cb-void-data">eio_unlink (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_utime-const-char-path-eio_tstamp-atime-eio_tstamp-mtime-int-pri-eio_cb-cb-void-data">eio_utime (const char *path, eio_tstamp atime, eio_tstamp mtime, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_mknod-const-char-path-mode_t-mode-dev_t-dev-int-pri-eio_cb-cb-void-data">eio_mknod (const char *path, mode_t mode, dev_t dev, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_link-const-char-path-const-char-new_path-int-pri-eio_cb-cb-void-data">eio_link (const char *path, const char *new_path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_symlink-const-char-path-const-char-new_path-int-pri-eio_cb-cb-void-data">eio_symlink (const char *path, const char *new_path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_rename-const-char-path-const-char-new_path-int-pri-eio_cb-cb-void-data">eio_rename (const char *path, const char *new_path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_mlock-void-addr-size_t-length-int-pri-eio_cb-cb-void-data">eio_mlock (void *addr, size_t length, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_close-int-fd-int-pri-eio_cb-cb-void-data">eio_close (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_sync-int-pri-eio_cb-cb-void-data">eio_sync (int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fsync-int-fd-int-pri-eio_cb-cb-void-data">eio_fsync (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fdatasync-int-fd-int-pri-eio_cb-cb-void-data">eio_fdatasync (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_futime-int-fd-eio_tstamp-atime-eio_tstamp-mtime-int-pri-eio_cb-cb-void-data">eio_futime (int fd, eio_tstamp atime, eio_tstamp mtime, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_ftruncate-int-fd-off_t-offset-int-pri-eio_cb-cb-void-data">eio_ftruncate (int fd, off_t offset, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fchmod-int-fd-mode_t-mode-int-pri-eio_cb-cb-void-data">eio_fchmod (int fd, mode_t mode, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fchown-int-fd-uid_t-uid-gid_t-gid-int-pri-eio_cb-cb-void-data">eio_fchown (int fd, uid_t uid, gid_t gid, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_dup2-int-fd-int-fd2-int-pri-eio_cb-cb-void-data">eio_dup2 (int fd, int fd2, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>These have the same semantics as the syscall of the same name, their return value is available as <code>req-&gt;result</code> later.</p>
+
+</dd>
+<dt id="eio_read-int-fd-void-buf-size_t-length-off_t-offset-int-pri-eio_cb-cb-void-data">eio_read (int fd, void *buf, size_t length, off_t offset, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_write-int-fd-void-buf-size_t-length-off_t-offset-int-pri-eio_cb-cb-void-data">eio_write (int fd, void *buf, size_t length, off_t offset, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>These two requests are called <code>read</code> and <code>write</code>, but actually wrap <code>pread</code> and <code>pwrite</code>. On systems that lack these calls (such as cygwin), libeio uses lseek/read_or_write/lseek and a mutex to serialise the requests, so all these requests run serially and do not disturb each other. However, they still disturb the file offset while they run, so it&#39;s not safe to call these functions concurrently with non-libeio functions on the same fd on these systems.</p>
+
+<p>Not surprisingly, pread and pwrite are not thread-safe on Darwin (OS/X), so it is advised not to submit multiple requests on the same fd on this horrible pile of garbage.</p>
+
+</dd>
+<dt id="eio_mlockall-int-flags-int-pri-eio_cb-cb-void-data">eio_mlockall (int flags, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Like <code>mlockall</code>, but the flag value constants are called <code>EIO_MCL_CURRENT</code> and <code>EIO_MCL_FUTURE</code>.</p>
+
+</dd>
+<dt id="eio_msync-void-addr-size_t-length-int-flags-int-pri-eio_cb-cb-void-data">eio_msync (void *addr, size_t length, int flags, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Just like msync, except that the flag values are called <code>EIO_MS_ASYNC</code>, <code>EIO_MS_INVALIDATE</code> and <code>EIO_MS_SYNC</code>.</p>
+
+</dd>
+<dt id="eio_readlink-const-char-path-int-pri-eio_cb-cb-void-data">eio_readlink (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>If successful, the path read by <code>readlink(2)</code> can be accessed via <code>req-&gt;ptr2</code> and is <i>NOT</i> null-terminated, with the length specified as <code>req-&gt;result</code>.</p>
+
+<pre><code>  if (req-&gt;result &gt;= 0)
+    {
+      char *target = strndup ((char *)req-&gt;ptr2, req-&gt;result);
+
+      free (target);
+    }</code></pre>
+
+</dd>
+<dt id="eio_realpath-const-char-path-int-pri-eio_cb-cb-void-data">eio_realpath (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Similar to the realpath libc function, but unlike that one, <code>req-&gt;result</code> is <code>-1</code> on failure. On success, the result is the length of the returned path in <code>ptr2</code> (which is <i>NOT</i> 0-terminated) - this is similar to readlink.</p>
+
+</dd>
+<dt id="eio_stat-const-char-path-int-pri-eio_cb-cb-void-data">eio_stat (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_lstat-const-char-path-int-pri-eio_cb-cb-void-data">eio_lstat (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fstat-int-fd-int-pri-eio_cb-cb-void-data">eio_fstat (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Stats a file - if <code>req-&gt;result</code> indicates success, then you can access the <code>struct stat</code>-like structure via <code>req-&gt;ptr2</code>:</p>
+
+<pre><code>  EIO_STRUCT_STAT *statdata = (EIO_STRUCT_STAT *)req-&gt;ptr2;</code></pre>
+
+</dd>
+<dt id="eio_statvfs-const-char-path-int-pri-eio_cb-cb-void-data">eio_statvfs (const char *path, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+</dd>
+<dt id="eio_fstatvfs-int-fd-int-pri-eio_cb-cb-void-data">eio_fstatvfs (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Stats a filesystem - if <code>req-&gt;result</code> indicates success, then you can access the <code>struct statvfs</code>-like structure via <code>req-&gt;ptr2</code>:</p>
+
+<pre><code>  EIO_STRUCT_STATVFS *statdata = (EIO_STRUCT_STATVFS *)req-&gt;ptr2;</code></pre>
+
+</dd>
+</dl>
+
+<h3 id="READING-DIRECTORIES">READING DIRECTORIES</h3>
+
+<p>Reading directories sounds simple, but can be rather demanding, especially if you want to do stuff such as traversing a directory hierarchy or processing all files in a directory. Libeio can assist these complex tasks with it&#39;s <code>eio_readdir</code> call.</p>
+
+<dl>
+
+<dt id="eio_readdir-const-char-path-int-flags-int-pri-eio_cb-cb-void-data">eio_readdir (const char *path, int flags, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>This is a very complex call. It basically reads through a whole directory (via the <code>opendir</code>, <code>readdir</code> and <code>closedir</code> calls) and returns either the names or an array of <code>struct eio_dirent</code>, depending on the <code>flags</code> argument.</p>
+
+<p>The <code>req-&gt;result</code> indicates either the number of files found, or <code>-1</code> on error. On success, null-terminated names can be found as <code>req-&gt;ptr2</code>, and <code>struct eio_dirents</code>, if requested by <code>flags</code>, can be found via <code>req-&gt;ptr1</code>.</p>
+
+<p>Here is an example that prints all the names:</p>
+
+<pre><code>  int i;
+  char *names = (char *)req-&gt;ptr2;
+
+  for (i = 0; i &lt; req-&gt;result; ++i)
+    {
+      printf (&quot;name #%d: %s\n&quot;, i, names);
+
+      /* move to next name */
+      names += strlen (names) + 1;
+    }</code></pre>
+
+<p>Pseudo-entries such as <i>.</i> and <i>..</i> are never returned by <code>eio_readdir</code>.</p>
+
+<p><code>flags</code> can be any combination of:</p>
+
+<dl>
+
+<dt id="EIO_READDIR_DENTS">EIO_READDIR_DENTS</dt>
+<dd>
+
+<p>If this flag is specified, then, in addition to the names in <code>ptr2</code>, also an array of <code>struct eio_dirent</code> is returned, in <code>ptr1</code>. A <code>struct eio_dirent</code> looks like this:</p>
+
+<pre><code>  struct eio_dirent
+  {
+    int nameofs; /* offset of null-terminated name string in (char *)req-&gt;ptr2 */
+    unsigned short namelen; /* size of filename without trailing 0 */
+    unsigned char type; /* one of EIO_DT_* */
+    signed char score; /* internal use */
+    ino_t inode; /* the inode number, if available, otherwise unspecified */
+  };</code></pre>
+
+<p>The only members you normally would access are <code>nameofs</code>, which is the byte-offset from <code>ptr2</code> to the start of the name, <code>namelen</code> and <code>type</code>.</p>
+
+<p><code>type</code> can be one of:</p>
+
+<p><code>EIO_DT_UNKNOWN</code> - if the type is not known (very common) and you have to <code>stat</code> the name yourself if you need to know, one of the &quot;standard&quot; POSIX file types (<code>EIO_DT_REG</code>, <code>EIO_DT_DIR</code>, <code>EIO_DT_LNK</code>, <code>EIO_DT_FIFO</code>, <code>EIO_DT_SOCK</code>, <code>EIO_DT_CHR</code>, <code>EIO_DT_BLK</code>) or some OS-specific type (currently <code>EIO_DT_MPC</code> - multiplexed char device (v7+coherent), <code>EIO_DT_NAM</code> - xenix special named file, <code>EIO_DT_MPB</code> - multiplexed block device (v7+coherent), <code>EIO_DT_NWK</code> - HP-UX network special, <code>EIO_DT_CMP</code> - VxFS compressed, <code>EIO_DT_DOOR</code> - solaris door, or <code>EIO_DT_WHT</code>).</p>
+
+<p>This example prints all names and their type:</p>
+
+<pre><code>  int i;
+  struct eio_dirent *ents = (struct eio_dirent *)req-&gt;ptr1;
+  char *names = (char *)req-&gt;ptr2;
+
+  for (i = 0; i &lt; req-&gt;result; ++i)
+    {
+      struct eio_dirent *ent = ents + i;
+      char *name = names + ent-&gt;nameofs;
+
+      printf (&quot;name #%d: %s (type %d)\n&quot;, i, name, ent-&gt;type);
+    }</code></pre>
+
+</dd>
+<dt id="EIO_READDIR_DIRS_FIRST">EIO_READDIR_DIRS_FIRST</dt>
+<dd>
+
+<p>When this flag is specified, then the names will be returned in an order where likely directories come first, in optimal <code>stat</code> order. This is useful when you need to quickly find directories, or you want to find all directories while avoiding to stat() each entry.</p>
+
+<p>If the system returns type information in readdir, then this is used to find directories directly. Otherwise, likely directories are names beginning with &quot;.&quot;, or otherwise names with no dots, of which names with short names are tried first.</p>
+
+</dd>
+<dt id="EIO_READDIR_STAT_ORDER">EIO_READDIR_STAT_ORDER</dt>
+<dd>
+
+<p>When this flag is specified, then the names will be returned in an order suitable for stat()&#39;ing each one. That is, when you plan to stat() all files in the given directory, then the returned order will likely be fastest.</p>
+
+<p>If both this flag and <code>EIO_READDIR_DIRS_FIRST</code> are specified, then the likely directories come first, resulting in a less optimal stat order.</p>
+
+</dd>
+<dt id="EIO_READDIR_FOUND_UNKNOWN">EIO_READDIR_FOUND_UNKNOWN</dt>
+<dd>
+
+<p>This flag should not be specified when calling <code>eio_readdir</code>. Instead, it is being set by <code>eio_readdir</code> (you can access the <code>flags</code> via <code>req-&gt;int1</code>, when any of the <code>type</code>&#39;s found were <code>EIO_DT_UNKNOWN</code>. The absence of this flag therefore indicates that all <code>type</code>&#39;s are known, which can be used to speed up some algorithms.</p>
+
+<p>A typical use case would be to identify all subdirectories within a directory - you would ask <code>eio_readdir</code> for <code>EIO_READDIR_DIRS_FIRST</code>. If then this flag is <i>NOT</i> set, then all the entries at the beginning of the returned array of type <code>EIO_DT_DIR</code> are the directories. Otherwise, you should start <code>stat()</code>&#39;ing the entries starting at the beginning of the array, stopping as soon as you found all directories (the count can be deduced by the link count of the directory).</p>
+
+</dd>
+</dl>
+
+</dd>
+</dl>
+
+<h3 id="OS-SPECIFIC-CALL-WRAPPERS">OS-SPECIFIC CALL WRAPPERS</h3>
+
+<p>These wrap OS-specific calls (usually Linux ones), and might or might not be emulated on other operating systems. Calls that are not emulated will return <code>-1</code> and set <code>errno</code> to <code>ENOSYS</code>.</p>
+
+<dl>
+
+<dt id="eio_sendfile-int-out_fd-int-in_fd-off_t-in_offset-size_t-length-int-pri-eio_cb-cb-void-data">eio_sendfile (int out_fd, int in_fd, off_t in_offset, size_t length, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Wraps the <code>sendfile</code> syscall. The arguments follow the Linux version, but libeio supports and will use similar calls on FreeBSD, HP/UX, Solaris and Darwin.</p>
+
+<p>If the OS doesn&#39;t support some sendfile-like call, or the call fails, indicating support for the given file descriptor type (for example, Linux&#39;s sendfile might not support file to file copies), then libeio will emulate the call in userspace, so there are almost no limitations on its use.</p>
+
+</dd>
+<dt id="eio_readahead-int-fd-off_t-offset-size_t-length-int-pri-eio_cb-cb-void-data">eio_readahead (int fd, off_t offset, size_t length, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Calls <code>readahead(2)</code>. If the syscall is missing, then the call is emulated by simply reading the data (currently in 64kiB chunks).</p>
+
+</dd>
+<dt id="eio_syncfs-int-fd-int-pri-eio_cb-cb-void-data">eio_syncfs (int fd, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Calls Linux&#39; <code>syncfs</code> syscall, if available. Returns <code>-1</code> and sets <code>errno</code> to <code>ENOSYS</code> if the call is missing <i>but still calls sync()</i>, if the <code>fd</code> is <code>&gt;= 0</code>, so you can probe for the availability of the syscall with a negative <code>fd</code> argument and checking for <code>-1/ENOSYS</code>.</p>
+
+</dd>
+<dt id="eio_sync_file_range-int-fd-off_t-offset-size_t-nbytes-unsigned-int-flags-int-pri-eio_cb-cb-void-data">eio_sync_file_range (int fd, off_t offset, size_t nbytes, unsigned int flags, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Calls <code>sync_file_range</code>. If the syscall is missing, then this is the same as calling <code>fdatasync</code>.</p>
+
+<p>Flags can be any combination of <code>EIO_SYNC_FILE_RANGE_WAIT_BEFORE</code>, <code>EIO_SYNC_FILE_RANGE_WRITE</code> and <code>EIO_SYNC_FILE_RANGE_WAIT_AFTER</code>.</p>
+
+</dd>
+<dt id="eio_fallocate-int-fd-int-mode-off_t-offset-off_t-len-int-pri-eio_cb-cb-void-data">eio_fallocate (int fd, int mode, off_t offset, off_t len, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Calls <code>fallocate</code> (note: <i>NOT</i> <code>posix_fallocate</code>!). If the syscall is missing, then it returns failure and sets <code>errno</code> to <code>ENOSYS</code>.</p>
+
+<p>The <code>mode</code> argument can be <code>0</code> (for behaviour similar to <code>posix_fallocate</code>), or <code>EIO_FALLOC_FL_KEEP_SIZE</code>, which keeps the size of the file unchanged (but still preallocates space beyond end of file).</p>
+
+</dd>
+</dl>
+
+<h3 id="LIBEIO-SPECIFIC-REQUESTS">LIBEIO-SPECIFIC REQUESTS</h3>
+
+<p>These requests are specific to libeio and do not correspond to any OS call.</p>
+
+<dl>
+
+<dt id="eio_mtouch-void-addr-size_t-length-int-flags-int-pri-eio_cb-cb-void-data">eio_mtouch (void *addr, size_t length, int flags, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Reads (<code>flags == 0</code>) or modifies (<code>flags == EIO_MT_MODIFY</code>) the given memory area, page-wise, that is, it reads (or reads and writes back) the first octet of every page that spans the memory area.</p>
+
+<p>This can be used to page in some mmapped file, or dirty some pages. Note that dirtying is an unlocked read-write access, so races can ensue when the some other thread modifies the data stored in that memory area.</p>
+
+</dd>
+<dt id="eio_custom-void-eio_req-execute-int-pri-eio_cb-cb-void-data">eio_custom (void (*)(eio_req *) execute, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Executes a custom request, i.e., a user-specified callback.</p>
+
+<p>The callback gets the <code>eio_req *</code> as parameter and is expected to read and modify any request-specific members. Specifically, it should set <code>req-&gt;result</code> to the result value, just like other requests.</p>
+
+<p>Here is an example that simply calls <code>open</code>, like <code>eio_open</code>, but it uses the <code>data</code> member as filename and uses a hardcoded <code>O_RDONLY</code>. If you want to pass more/other parameters, you either need to pass some struct or so via <code>data</code> or provide your own wrapper using the low-level API.</p>
+
+<pre><code>  static int
+  my_open_done (eio_req *req)
+  {
+    int fd = req-&gt;result;
+
+    return 0;
+  }
+
+  static void
+  my_open (eio_req *req)
+  {
+    req-&gt;result = open (req-&gt;data, O_RDONLY);
+  }
+
+  eio_custom (my_open, 0, my_open_done, &quot;/etc/passwd&quot;);</code></pre>
+
+</dd>
+<dt id="eio_busy-eio_tstamp-delay-int-pri-eio_cb-cb-void-data">eio_busy (eio_tstamp delay, int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>This is a request that takes <code>delay</code> seconds to execute, but otherwise does nothing - it simply puts one of the worker threads to sleep for this long.</p>
+
+<p>This request can be used to artificially increase load, e.g. for debugging or benchmarking reasons.</p>
+
+</dd>
+<dt id="eio_nop-int-pri-eio_cb-cb-void-data">eio_nop (int pri, eio_cb cb, void *data)</dt>
+<dd>
+
+<p>This request does nothing, except go through the whole request cycle. This can be used to measure latency or in some cases to simplify code, but is not really of much use.</p>
+
+</dd>
+</dl>
+
+<h3 id="GROUPING-AND-LIMITING-REQUESTS">GROUPING AND LIMITING REQUESTS</h3>
+
+<p>There is one more rather special request, <code>eio_grp</code>. It is a very special aio request: Instead of doing something, it is a container for other eio requests.</p>
+
+<p>There are two primary use cases for this: a) bundle many requests into a single, composite, request with a definite callback and the ability to cancel the whole request with its subrequests and b) limiting the number of &quot;active&quot; requests.</p>
+
+<p>Further below you will find more discussion of these topics - first follows the reference section detailing the request generator and other methods.</p>
+
+<dl>
+
+<dt id="eio_req-grp-eio_grp-eio_cb-cb-void-data">eio_req *grp = eio_grp (eio_cb cb, void *data)</dt>
+<dd>
+
+<p>Creates, submits and returns a group request. Note that it doesn&#39;t have a priority, unlike all other requests.</p>
+
+</dd>
+<dt id="eio_grp_add-eio_req-grp-eio_req-req">eio_grp_add (eio_req *grp, eio_req *req)</dt>
+<dd>
+
+<p>Adds a request to the request group.</p>
+
+</dd>
+<dt id="eio_grp_cancel-eio_req-grp">eio_grp_cancel (eio_req *grp)</dt>
+<dd>
+
+<p>Cancels all requests <i>in</i> the group, but <i>not</i> the group request itself. You can cancel the group request <i>and</i> all subrequests via a normal <code>eio_cancel</code> call.</p>
+
+</dd>
+</dl>
+
+<h4 id="GROUP-REQUEST-LIFETIME">GROUP REQUEST LIFETIME</h4>
+
+<p>Left alone, a group request will instantly move to the pending state and will be finished at the next call of <code>eio_poll</code>.</p>
+
+<p>The usefulness stems from the fact that, if a subrequest is added to a group <i>before</i> a call to <code>eio_poll</code>, via <code>eio_grp_add</code>, then the group will not finish until all the subrequests have finished.</p>
+
+<p>So the usage cycle of a group request is like this: after it is created, you normally instantly add a subrequest. If none is added, the group request will finish on it&#39;s own. As long as subrequests are added before the group request is finished it will be kept from finishing, that is the callbacks of any subrequests can, in turn, add more requests to the group, and as long as any requests are active, the group request itself will not finish.</p>
+
+<h4 id="CREATING-COMPOSITE-REQUESTS">CREATING COMPOSITE REQUESTS</h4>
+
+<p>Imagine you wanted to create an <code>eio_load</code> request that opens a file, reads it and closes it. This means it has to execute at least three eio requests, but for various reasons it might be nice if that request looked like any other eio request.</p>
+
+<p>This can be done with groups:</p>
+
+<dl>
+
+<dt id="create-the-request-object">1) create the request object</dt>
+<dd>
+
+<p>Create a group that contains all further requests. This is the request you can return as &quot;the load request&quot;.</p>
+
+</dd>
+<dt id="open-the-file-maybe">2) open the file, maybe</dt>
+<dd>
+
+<p>Next, open the file with <code>eio_open</code> and add the request to the group request and you are finished setting up the request.</p>
+
+<p>If, for some reason, you cannot <code>eio_open</code> (path is a null ptr?) you can set <code>grp-&gt;result</code> to <code>-1</code> to signal an error and let the group request finish on its own.</p>
+
+</dd>
+<dt id="open-callback-adds-more-requests">3) open callback adds more requests</dt>
+<dd>
+
+<p>In the open callback, if the open was not successful, copy <code>req-&gt;errorno</code> to <code>grp-&gt;errorno</code> and set <code>grp-&gt;result</code> to <code>-1</code> to signal an error.</p>
+
+<p>Otherwise, malloc some memory or so and issue a read request, adding the read request to the group.</p>
+
+</dd>
+<dt id="continue-issuing-requests-till-finished">4) continue issuing requests till finished</dt>
+<dd>
+
+<p>In the read callback, check for errors and possibly continue with <code>eio_close</code> or any other eio request in the same way.</p>
+
+<p>As soon as no new requests are added, the group request will finish. Make sure you <i>always</i> set <code>grp-&gt;result</code> to some sensible value.</p>
+
+</dd>
+</dl>
+
+<h4 id="REQUEST-LIMITING">REQUEST LIMITING</h4>
+
+<p>#TODO</p>
+
+<p>void eio_grp_limit (eio_req *grp, int limit);</p>
+
+<h1 id="LOW-LEVEL-REQUEST-API">LOW LEVEL REQUEST API</h1>
+
+<p>#TODO</p>
+
+<h1 id="ANATOMY-AND-LIFETIME-OF-AN-EIO-REQUEST">ANATOMY AND LIFETIME OF AN EIO REQUEST</h1>
+
+<p>A request is represented by a structure of type <code>eio_req</code>. To initialise it, clear it to all zero bytes:</p>
+
+<pre><code>  eio_req req;
+
+  memset (&amp;req, 0, sizeof (req));</code></pre>
+
+<p>A more common way to initialise a new <code>eio_req</code> is to use <code>calloc</code>:</p>
+
+<pre><code>  eio_req *req = calloc (1, sizeof (*req));</code></pre>
+
+<p>In either case, libeio neither allocates, initialises or frees the <code>eio_req</code> structure for you - it merely uses it.</p>
+
+<p>zero</p>
+
+<p>#TODO</p>
+
+<h2 id="CONFIGURATION">CONFIGURATION</h2>
+
+<p>The functions in this section can sometimes be useful, but the default configuration will do in most case, so you should skip this section on first reading.</p>
+
+<dl>
+
+<dt id="eio_set_max_poll_time-eio_tstamp-nseconds">eio_set_max_poll_time (eio_tstamp nseconds)</dt>
+<dd>
+
+<p>This causes <code>eio_poll ()</code> to return after it has detected that it was running for <code>nsecond</code> seconds or longer (this number can be fractional).</p>
+
+<p>This can be used to limit the amount of time spent handling eio requests, for example, in interactive programs, you might want to limit this time to <code>0.01</code> seconds or so.</p>
+
+<p>Note that:</p>
+
+<dl>
+
+<dt id="a-libeio-doesnt-know-how-long-your-request-callbacks-take-so-the-time-spent-in-eio_poll-is-up-to-one-callback-invocation-longer-then-this-interval">a) libeio doesn&#39;t know how long your request callbacks take, so the time spent in <code>eio_poll</code> is up to one callback invocation longer then this interval.</dt>
+<dd>
+
+</dd>
+<dt id="b-this-is-implemented-by-calling-gettimeofday-after-each-request-which-can-be-costly">b) this is implemented by calling <code>gettimeofday</code> after each request, which can be costly.</dt>
+<dd>
+
+</dd>
+<dt id="c-at-least-one-request-will-be-handled">c) at least one request will be handled.</dt>
+<dd>
+
+</dd>
+</dl>
+
+</dd>
+<dt id="eio_set_max_poll_reqs-unsigned-int-nreqs">eio_set_max_poll_reqs (unsigned int nreqs)</dt>
+<dd>
+
+<p>When <code>nreqs</code> is non-zero, then <code>eio_poll</code> will not handle more than <code>nreqs</code> requests per invocation. This is a less costly way to limit the amount of work done by <code>eio_poll</code> then setting a time limit.</p>
+
+<p>If you know your callbacks are generally fast, you could use this to encourage interactiveness in your programs by setting it to <code>10</code>, <code>100</code> or even <code>1000</code>.</p>
+
+</dd>
+<dt id="eio_set_min_parallel-unsigned-int-nthreads">eio_set_min_parallel (unsigned int nthreads)</dt>
+<dd>
+
+<p>Make sure libeio can handle at least this many requests in parallel. It might be able handle more.</p>
+
+</dd>
+<dt id="eio_set_max_parallel-unsigned-int-nthreads">eio_set_max_parallel (unsigned int nthreads)</dt>
+<dd>
+
+<p>Set the maximum number of threads that libeio will spawn.</p>
+
+</dd>
+<dt id="eio_set_max_idle-unsigned-int-nthreads">eio_set_max_idle (unsigned int nthreads)</dt>
+<dd>
+
+<p>Libeio uses threads internally to handle most requests, and will start and stop threads on demand.</p>
+
+<p>This call can be used to limit the number of idle threads (threads without work to do): libeio will keep some threads idle in preparation for more requests, but never longer than <code>nthreads</code> threads.</p>
+
+<p>In addition to this, libeio will also stop threads when they are idle for a few seconds, regardless of this setting.</p>
+
+</dd>
+<dt id="unsigned-int-eio_nthreads">unsigned int eio_nthreads ()</dt>
+<dd>
+
+<p>Return the number of worker threads currently running.</p>
+
+</dd>
+<dt id="unsigned-int-eio_nreqs">unsigned int eio_nreqs ()</dt>
+<dd>
+
+<p>Return the number of requests currently handled by libeio. This is the total number of requests that have been submitted to libeio, but not yet destroyed.</p>
+
+</dd>
+<dt id="unsigned-int-eio_nready">unsigned int eio_nready ()</dt>
+<dd>
+
+<p>Returns the number of ready requests, i.e. requests that have been submitted but have not yet entered the execution phase.</p>
+
+</dd>
+<dt id="unsigned-int-eio_npending">unsigned int eio_npending ()</dt>
+<dd>
+
+<p>Returns the number of pending requests, i.e. requests that have been executed and have results, but have not been finished yet by a call to <code>eio_poll</code>).</p>
+
+</dd>
+</dl>
+
+<h1 id="EMBEDDING">EMBEDDING</h1>
+
+<p>Libeio can be embedded directly into programs. This functionality is not documented and not (yet) officially supported.</p>
+
+<p>Note that, when including <code>libeio.m4</code>, you are responsible for defining the compilation environment (<code>_LARGEFILE_SOURCE</code>, <code>_GNU_SOURCE</code> etc.).</p>
+
+<p>If you need to know how, check the <code>IO::AIO</code> perl module, which does exactly that.</p>
+
+<h1 id="COMPILETIME-CONFIGURATION">COMPILETIME CONFIGURATION</h1>
+
+<p>These symbols, if used, must be defined when compiling <i>eio.c</i>.</p>
+
+<dl>
+
+<dt id="EIO_STACKSIZE">EIO_STACKSIZE</dt>
+<dd>
+
+<p>This symbol governs the stack size for each eio thread. Libeio itself was written to use very little stackspace, but when using <code>EIO_CUSTOM</code> requests, you might want to increase this.</p>
+
+<p>If this symbol is undefined (the default) then libeio will use its default stack size (<code>sizeof (void *) * 4096</code> currently). In all other cases, the value must be an expression that evaluates to the desired stack size.</p>
+
+</dd>
+</dl>
+
+<h1 id="PORTABILITY-REQUIREMENTS">PORTABILITY REQUIREMENTS</h1>
+
+<p>In addition to a working ISO-C implementation, libeio relies on a few additional extensions:</p>
+
+<dl>
+
+<dt id="POSIX-threads">POSIX threads</dt>
+<dd>
+
+<p>To be portable, this module uses threads, specifically, the POSIX threads library must be available (and working, which partially excludes many xBSD systems, where <code>fork ()</code> is buggy).</p>
+
+</dd>
+<dt id="POSIX-compatible-filesystem-API">POSIX-compatible filesystem API</dt>
+<dd>
+
+<p>This is actually a harder portability requirement: The libeio API is quite demanding regarding POSIX API calls (symlinks, user/group management etc.).</p>
+
+</dd>
+<dt id="double-must-hold-a-time-value-in-seconds-with-enough-accuracy"><code>double</code> must hold a time value in seconds with enough accuracy</dt>
+<dd>
+
+<p>The type <code>double</code> is used to represent timestamps. It is required to have at least 51 bits of mantissa (and 9 bits of exponent), which is good enough for at least into the year 4000. This requirement is fulfilled by implementations implementing IEEE 754 (basically all existing ones).</p>
+
+</dd>
+</dl>
+
+<p>If you know of other additional requirements drop me a note.</p>
+
+<h1 id="AUTHOR">AUTHOR</h1>
+
+<p>Marc Lehmann &lt;libeio@schmorp.de&gt;.</p>
+
+
+</body>
+
+</html>
+
+

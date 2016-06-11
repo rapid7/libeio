@@ -1,0 +1,16 @@
+.git
+*.tar.gz
+*.tmp
+Makefile.in
+aclocal.m4
+autom4te.cache
+config.h.in
+configure
+m4
+CVS
+compile
+config.guess
+config.sub
+install-sh
+ltmain.sh
+missing
