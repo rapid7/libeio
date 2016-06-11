@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = foreign no-dependencies
 
 VERSION_INFO = 1:0
 
-EXTRA_DIST = LICENSE Changes autogen.sh etp.c
+EXTRA_DIST = LICENSE Changes autogen.sh etp.c eio.3
 
 man_MANS = eio.3
 
@@ -17,5 +17,5 @@ libeio_la_LDFLAGS = -version-info $(VERSION_INFO)
 
 noinst_PROGRAMS = demo
 
-demo_LDADD = $(abs_top_builddir)/libeio.a
+demo_LDADD = $(abs_top_builddir)/libeio.la
 demo_SOURCES = demo.c
