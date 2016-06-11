@@ -13,7 +13,5 @@ AC_PROG_LIBTOOL
 
 AC_PROG_CC
 
-m4_include([libeio.m4])
-
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
