@@ -64,10 +64,10 @@
 #endif
 
 #ifndef ETP_WANT_POLL
-# define ETP_WANT_POLL(pool) pool->want_poll_cb (pool->userdata)
+# define ETP_WANT_POLL(pool) if (pool->want_poll_cb) pool->want_poll_cb (pool->userdata)
 #endif
 #ifndef ETP_DONE_POLL
-# define ETP_DONE_POLL(pool) pool->done_poll_cb (pool->userdata)
+# define ETP_DONE_POLL(pool) if (pool->done_poll_cb) pool->done_poll_cb (pool->userdata)
 #endif
 
 #define ETP_NUM_PRI (ETP_PRI_MAX - ETP_PRI_MIN + 1)
