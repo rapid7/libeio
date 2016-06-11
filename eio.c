@@ -56,6 +56,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <stdio.h>
+#include <utime.h>
 
 /* intptr_t comes from unistd.h, says POSIX/UNIX/tradition */
 /* intptr_t only comes from stdint.h, says idiot openbsd coder */
