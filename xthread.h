@@ -18,8 +18,8 @@
 #ifdef _WIN32
 
 //#define NTDDI_VERSION NTDDI_WIN2K // needed to get win2000 api calls, fails with mingw
-#define _WIN32_WINNT 0x400 // maybe working alternative for mingw
-#include <stdio.h>//D
+#define _WIN32_WINNT 0x400		// maybe working alternative for mingw
+#include <stdio.h>				//D
 #include <fcntl.h>
 #include <io.h>
 #include <time.h>
@@ -56,20 +56,19 @@ typedef pthread_t xthread_t;
 #define X_THREAD_PROC(name) static void *name (void *thr_arg)
 #define X_THREAD_ATFORK(a,b,c)
 
-static int
-xthread_create (xthread_t *tid, void *(*proc)(void *), void *arg)
+static int xthread_create(xthread_t * tid, void *(*proc) (void *), void *arg)
 {
-  int retval;
-  pthread_attr_t attr;
+	int retval;
+	pthread_attr_t attr;
 
-  pthread_attr_init (&attr);
-  pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-  retval = pthread_create (tid, &attr, proc, arg) == 0;
+	retval = pthread_create(tid, &attr, proc, arg) == 0;
 
-  pthread_attr_destroy (&attr);
+	pthread_attr_destroy(&attr);
 
-  return retval;
+	return retval;
 }
 
 #define respipe_read(a,b,c)  PerlSock_recv ((a), (b), (c), 0)
@@ -137,29 +136,29 @@ typedef pthread_t xthread_t;
 # define X_STACKSIZE sizeof (void *) * 4096
 #endif
 
-static int
-xthread_create (xthread_t *tid, void *(*proc)(void *), void *arg)
+static int xthread_create(xthread_t * tid, void *(*proc) (void *), void *arg)
 {
-  int retval;
-  sigset_t fullsigset, oldsigset;
-  pthread_attr_t attr;
+	int retval;
+	sigset_t fullsigset, oldsigset;
+	pthread_attr_t attr;
 
-  pthread_attr_init (&attr);
-  pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-  pthread_attr_setstacksize (&attr, PTHREAD_STACK_MIN < X_STACKSIZE ? X_STACKSIZE : PTHREAD_STACK_MIN);
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	pthread_attr_setstacksize(&attr,
+		PTHREAD_STACK_MIN < X_STACKSIZE ? X_STACKSIZE : PTHREAD_STACK_MIN);
 #ifdef PTHREAD_SCOPE_PROCESS
-  pthread_attr_setscope (&attr, PTHREAD_SCOPE_PROCESS);
+	pthread_attr_setscope(&attr, PTHREAD_SCOPE_PROCESS);
 #endif
 
-  sigfillset (&fullsigset);
+	sigfillset(&fullsigset);
 
-  pthread_sigmask (SIG_SETMASK, &fullsigset, &oldsigset);
-  retval = pthread_create (tid, &attr, proc, arg) == 0;
-  pthread_sigmask (SIG_SETMASK, &oldsigset, 0);
+	pthread_sigmask(SIG_SETMASK, &fullsigset, &oldsigset);
+	retval = pthread_create(tid, &attr, proc, arg) == 0;
+	pthread_sigmask(SIG_SETMASK, &oldsigset, 0);
 
-  pthread_attr_destroy (&attr);
+	pthread_attr_destroy(&attr);
 
-  return retval;
+	return retval;
 }
 
 #define respipe_read(a,b,c)  read  ((a), (b), (c))
@@ -168,10 +167,10 @@ xthread_create (xthread_t *tid, void *(*proc)(void *), void *arg)
 
 #endif
 
-#if __linux && __GNUC__ >= 4 && __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 3 && 0 /* also check arch */
+#if __linux && __GNUC__ >= 4 && __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 3 && 0	/* also check arch */
 /* __thread has little to no advantage over pthread_* in most configurations, so this is not used */
 # define X_TLS_DECLARE(varname)   __thread void *varname
-# define X_TLS_INIT(varname)      
+# define X_TLS_INIT(varname)
 # define X_TLS_SET(varname,value) varname = (value)
 # define X_TLS_GET(varname)       varname
 #else
@@ -182,4 +181,3 @@ xthread_create (xthread_t *tid, void *(*proc)(void *), void *arg)
 #endif
 
 #endif
-
