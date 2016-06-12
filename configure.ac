@@ -14,6 +14,21 @@ AC_PROG_LIBTOOL
 
 AC_PROG_CC
 
+AC_EGREP_CPP(we_are_using_clang,
+[
+#include <unistd.h>
+#ifdef __clang__
+we_are_using_clang
+#endif
+],
+[AC_MSG_RESULT([yes])
+IS_CLANG="yes"],
+[AC_MSG_RESULT([no])])
+
+if test x"$IS_CLANG" == x"yes" ; then
+	CFLAGS="$CFLAGS -Wno-implicit-function-declaration"
+fi
+
 m4_include([m4/libeio.m4])
 
 AC_CONFIG_FILES([Makefile])
