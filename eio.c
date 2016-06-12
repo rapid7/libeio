@@ -2485,7 +2485,7 @@ void eio_grp_limit(eio_req * grp, int limit)
 
 void eio_grp_add(eio_req * grp, eio_req * req)
 {
-	assert(("cannot add requests to IO::AIO::GRP after the group finished", grp->int1 != 2));
+	assert(grp->int1 != 2);
 
 	grp->flags |= ETP_FLAG_GROUPADD;
 
