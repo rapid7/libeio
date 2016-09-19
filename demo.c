@@ -17,14 +17,14 @@ void want_poll(void)
 {
 	char dummy;
 	printf("want_poll ()\n");
-	write(respipe[1], &dummy, 1);
+	if (write(respipe[1], &dummy, 1) != 1) {}
 }
 
 void done_poll(void)
 {
 	char dummy;
 	printf("done_poll ()\n");
-	read(respipe[0], &dummy, 1);
+	if (read(respipe[0], &dummy, 1) != 1) {}
 }
 
 void event_loop(void)
@@ -118,7 +118,7 @@ int main(void)
 
 	do {
 		/*
-		   avoid relative paths yourself(!) 
+		   avoid relative paths yourself(!)
 		 */
 		eio_mkdir("eio-test-dir", 0777, 0, res_cb, "mkdir");
 		eio_nop(0, res_cb, "nop");
