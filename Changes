@@ -7,6 +7,7 @@ TODO: make mtouch/readdir maybe others cancellable in-request
 TODO: fadvise request
 TODO: fdopendir/utimensat
 TODO: maybe work around 3.996gb barrier in pread/pwrite as well, maybe readahead etc.?
+TODO: pthread_condattr_setclock(..., CLOCK_MONOTONIC) and clock_gettime(CLOCK_MONOTONIC) instead of defualt CLOCK_REALTIME timeouts
 1.0
 	- for simple request api, initialise result/errorno to -1/ECANCELED.
 	- fix a deadlock where a wakeup signal could be missed when
@@ -77,4 +78,23 @@ TODO: maybe work around 3.996gb barrier in pread/pwrite as well, maybe readahead
         - implement aio_realpath for windows.
         - add EIO_FALLOC_FL_COLLAPSE_RANGE and EIO_FALLOC_FL_ZERO_RANGE.
         - add EIO_FCNTL, EIO_IOCTL.
+        - try to use SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE when creating
+          symlinks on windows.
+        - support a minimum of EIO_PATH_MIN (default: 8160) as PATH_MAX (including
+          trailing 0 byte) in readlink, realpath etc.
+        - generate ENAMETOOLONG if readlink overflow is detected.
+        - implement support for renameat2, and corresponding flags.
+        - add EIO_FALLOC_FL_INSERT_RANGE and EIO_FALLOC_FL_UNSHARE_RANGE.
+        - use posix_close if available or needed.
+        - save errno around close in ftruncateat, fstatvfsat and EIO_CLOSE.
+        - add EIO_SLURP convenience request.
+        - update configure.ac for newer autoconf/automake.
+        - include sys/prctl.h if available.
+        - use O_NONBLOCK when opening directories and in truncateat and statvfsat.
+        - add EIO_MCL_ONFAULT.
+        - add eio_mlockall_sync.
+        - fix configure tests for readahead and sync_file_range, they were based on the
+          manpages, which turned out to be wrong.
+        - protect wd_open against fd being 0, which is used for the value of EIO_CWD.
+
 
