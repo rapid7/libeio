@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT([libeio], [1.0])
+AC_INIT([libeio], [1.0.1])
 AC_CONFIG_SRCDIR([eio.h])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE
