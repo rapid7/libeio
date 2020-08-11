@@ -182,7 +182,7 @@ xthread_create (xthread_t *tid, void *(*proc)(void *), void *arg)
 #if __linux && __GNUC__ >= 4 && __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 3 && 0 /* also check arch */
 /* __thread has little to no advantage over pthread_* in most configurations, so this is not used */
 # define X_TLS_DECLARE(varname)   __thread void *varname
-# define X_TLS_INIT(varname)      
+# define X_TLS_INIT(varname)
 # define X_TLS_SET(varname,value) varname = (value)
 # define X_TLS_GET(varname)       varname
 #else

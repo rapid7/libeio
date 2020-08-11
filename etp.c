@@ -342,7 +342,7 @@ X_THREAD_PROC (etp_proc)
   etp_proc_init ();
 
   /* try to distribute timeouts somewhat evenly */
-  ts.tv_nsec = ((unsigned long)self & 1023UL) * (1000000000UL / 1024UL);
+  ts.tv_nsec = ((intptr_t)self & 1023UL) * (1000000000UL / 1024UL);
 
   for (;;)
     {

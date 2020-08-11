@@ -29,6 +29,15 @@ if test x"$IS_CLANG" == x"yes" ; then
 	CFLAGS="$CFLAGS -Wno-implicit-function-declaration"
 fi
 
+case $host_os in
+    *mingw*)
+        HOST_OS=win
+		;;
+	*)
+		;;
+esac
+AM_CONDITIONAL([HOST_WIN], [test x$HOST_OS = xwin])
+
 m4_include([m4/libeio.m4])
 
 AC_CONFIG_FILES([Makefile])

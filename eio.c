@@ -39,6 +39,9 @@
 
 #ifndef _WIN32
 # include "config.h"
+#else
+# include <winsock2.h>
+# include <windows.h>
 #endif
 
 #include "eio.h"
@@ -49,9 +52,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/ioctl.h>
+#ifndef _WIN32
+# include <sys/ioctl.h>
+#else
+# include <direct.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -221,7 +229,9 @@ static void eio_destroy (eio_req *req);
   }
 
   /* POSIX API only, causing trouble for win32 apps */
+#ifndef CreateHardLink
   #define CreateHardLink(neu,old,flags) 0 /* not really creating hardlink, still using relative paths? */
+#endif
   #define CreateSymbolicLink(neu,old,flags) 0 /* vista+ only */
 
   struct statvfs

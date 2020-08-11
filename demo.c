@@ -86,7 +86,7 @@ stat_cb (eio_req *req)
     printf ("stat_cb(%s) = %zd\n", EIO_PATH (req), EIO_RESULT (req));
 
   if (!EIO_RESULT (req))
-    printf ("stat size %zd perm 0%o\n", buf->st_size, buf->st_mode & 0777);
+    printf ("stat size %zd perm 0%o\n", (size_t)buf->st_size, buf->st_mode & 0777);
 
   return 0;
 }
