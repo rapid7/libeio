@@ -378,7 +378,7 @@ static void eio_destroy (eio_req *req);
 
 struct etp_tmpbuf;
 
-#if _POSIX_VERSION >= 200809L
+#if _POSIX_VERSION >= 200809L && NO_BACK_COMPAT
   #define HAVE_AT 1
   #define WD2FD(wd) ((wd) ? (wd)->fd : AT_FDCWD)
 #else
