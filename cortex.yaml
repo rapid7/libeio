@@ -1,0 +1,15 @@
+---
+info:
+  title: Libeio
+  description: fixes for http://software.schmorp.de/pkg/libeio.html
+  x-cortex-git:
+    github:
+      alias: r7org
+      repository: rapid7/libeio
+  x-cortex-tag: libeio
+  x-cortex-type: service
+  x-cortex-domain-parents:
+  - tag: metasploit
+openapi: 3.0.1
+servers:
+- url: "/"
